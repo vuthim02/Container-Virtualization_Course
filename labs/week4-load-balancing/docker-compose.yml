@@ -1,0 +1,25 @@
+services:
+  # Load Balancer
+  lb:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+
+  # API: Mock backend (using Python for variety)
+  api:
+    image: python:3.12-alpine
+    command: >
+      python3 -c 'from http.server import HTTPServer, BaseHTTPRequestHandler;
+      import socket;
+      class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+          self.send_response(200);
+          self.end_headers();
+          self.wfile.write(f"Response from {socket.gethostname()}\n".encode());
+      HTTPServer(("", 3000), Handler).serve_forever()'
+    deploy:
+      replicas: 3

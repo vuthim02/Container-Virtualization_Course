@@ -1,0 +1,60 @@
+services:
+  # Frontend: Nginx serving static files
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    networks:
+      - frontend-net
+    depends_on:
+      - api
+
+  # API: Mock Node.js application (using hello-world for demo)
+  api:
+    image: node:20-alpine
+    command: >
+      sh -c "echo 'const http = require(\"http\");
+      http.createServer((req, res) => {
+        res.end(\"API Response from \" + process.env.HOSTNAME);
+      }).listen(3000);' > server.js && node server.js"
+    environment:
+      - DATABASE_URL=postgres://app:secret@db:5432/appdb
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - frontend-net
+      - backend-net
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  # Database: PostgreSQL
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=appdb
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Cache: Redis
+  redis:
+    image: redis:7-alpine
+    networks:
+      - backend-net
+
+networks:
+  frontend-net:
+  backend-net:
+
+volumes:
+  pgdata:
